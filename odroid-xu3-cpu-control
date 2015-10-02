@@ -71,7 +71,7 @@ Options:
  -m, --min <number>\t\t The minimum CPU frequency (must be supported by governor and CPU. More info in cpufreq-info)
  -M, --max <number>\t\t The maximum CPU frequency (must be supported by governor and CPU. More info in cpufreq-info)
  -f, --frequency\t\t The current CPU frequency
- -q, --quet\t\t\t Don't display much output when setting a parameter
+ -q, --quiet\t\t\t Don't display much output when setting a parameter
  -h, --help\t\t\t Show this help screen
 "
 }
