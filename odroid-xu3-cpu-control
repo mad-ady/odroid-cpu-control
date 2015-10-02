@@ -1,0 +1,176 @@
+#!/bin/bash
+
+#some reasonable defaults
+cpuinfo='/usr/bin/cpufreq-info'
+cpuset='/usr/bin/cpufreq-set'
+LIST=
+
+#parameter parsing taken from http://stackoverflow.com/questions/192249/how-do-i-parse-command-line-arguments-in-bash
+while [[ "$#" > 0 ]]
+do
+key="$1"
+case $key in
+    -l|--list)
+    LIST=YES
+    SET=NO
+    ;;
+    -s|--set)
+    SET=YES
+    LIST=NO
+    ;;
+    -f|--frequency)
+    FREQUENCY=YES
+    ;;
+    -g|--governor)
+    GOVERNOR="$2"
+    shift
+    ;;
+    -c|--cpu)
+    CPU="$2"
+    shift
+    ;;
+    -m|--min)
+    MIN="$2"
+    shift
+    ;;
+    -M|--max)
+    MAX="$2"
+    shift
+    ;;
+    -h|--help)
+    usage;
+    exit 0;
+    ;;
+    *)
+            # unknown option
+    ;;
+esac
+shift # past argument or value
+done
+
+#echo "SET: " $SET
+#echo "LIST: " $LIST
+#echo "GOVERNOR: " $GOVERNOR
+#echo "CPU: " $CPU
+#echo "MIN: " $MIN
+#echo "MAX: " $MAX
+#echo "FREQUENCY: " $FREQUENCY
+
+function usage {
+	printf "Usage:
+$0 [options]
+
+Options:
+ -l, --list\t\t\t List a parameter
+ -s, --set\t\t\t Set a parameter
+ -g, --governor <governor>\t Select a governor (available in cpufreq-info)
+ -c, --cpu <number>\t\t The CPU to edit/query. Leave blank for all CPUs
+ -m, --min <number>\t\t The minimum CPU frequency (must be supported by governor and CPU. More info in cpufreq-info)
+ -M, --max <number>\t\t The maximum CPU frequency (must be supported by governor and CPU. More info in cpufreq-info)
+ -f, --frequency\t\t The current CPU frequency
+ -h, --help\t\t\t Show this help screen
+"
+}
+
+function getCurrentFrequency {
+	OPTS="$1"
+	local OUTPUT=`$cpuinfo -f $OPTS | sed 's/000$/MHz/'`;
+	if [ ! -z "$OUTPUT" ]; then
+		echo "$OUTPUT"
+	fi
+}
+
+function getCurrentGovernor {
+	OPTS="$1"
+	local OUTPUT=`$cpuinfo -p $OPTS | cut -d " " -f 3`;
+	if [ ! -z "$OUTPUT" ]; then
+		echo "$OUTPUT"
+	fi
+}
+
+function getMinFrequency {
+	OPTS="$1"
+	local OUTPUT=`$cpuinfo -l $OPTS | cut -d " " -f 1 | sed 's/000$/MHz/'`;
+	if [ ! -z "$OUTPUT" ]; then
+		echo "$OUTPUT"
+	fi
+}
+
+function getMaxFrequency {
+	OPTS="$1"
+	local OUTPUT=`$cpuinfo -l $OPTS | cut -d " " -f 2 | sed 's/000$/MHz/'`;
+	if [ ! -z "$OUTPUT" ]; then
+		echo "$OUTPUT"
+	fi
+}
+
+function list {
+	CPU="$1"
+	option="$2"
+	
+#	echo "option: $option";
+	if [ -z "$CPU" ]; then
+		CPU=0
+	fi
+	
+	freq=$(getCurrentFrequency "-c $CPU")
+	governor=$(getCurrentGovernor "-c $CPU")
+	min=$(getMinFrequency "-c $CPU")
+	max=$(getMaxFrequency "-c $CPU")
+	
+	if [ "$option" == "governor" ]; then
+		printf "CPU$CPU:\t$governor\n";
+	elif [ "$option" == "min" ]; then
+		printf "CPU$CPU:\t$min\n";
+	elif [ "$option" == "max" ]; then
+		printf "CPU$CPU:\t$max\n";
+	elif [ "$option" == "frequency" ]; then
+		printf "CPU$CPU:\t$freq\n";
+	else
+		printf "CPU$CPU:\tgovernor $governor\tmin $min\tmax $max\tcurrent $freq\n";
+	fi
+}
+
+
+
+
+
+if [ "$SET" == "YES" ]; then
+	echo "Set something"
+	# Make sure only root can run our script to set things
+	if (( $EUID != 0 )); then
+	   echo "This script must be run as root if you want to change things:" 1>&2
+	   echo "sudo $0" 1>&2
+	   exit 2
+	fi
+	
+elif [ "$LIST" == "YES" ]; then
+	#we call cpufreq-info and parse out the results
+	
+	opts=""
+	if [ ! -z "$GOVERNOR" ]; then
+		opts='governor'
+	elif [ ! -z "$MIN" ]; then
+		opts='min'
+	elif [ ! -z "$MAX" ]; then
+		opts='max'
+	elif [ "$FREQUENCY" == "YES" ]; then
+		opts='frequency'
+	else
+		opts=''
+	fi
+	
+	if [ -z "$CPU" ]; then
+		#iterate through all CPUs
+		totalCPUs=`grep processor /proc/cpuinfo | wc -l`
+		for((cpu=0; cpu<$totalCPUs; cpu++));
+		do
+			list "$cpu" "$opts"
+		done
+	else
+		list "$CPU" "$opts"
+	fi
+else 
+	usage
+	exit 1;
+fi
