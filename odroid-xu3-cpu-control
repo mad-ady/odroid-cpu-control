@@ -21,6 +21,9 @@ case $key in
     -f|--frequency)
     FREQUENCY=YES
     ;;
+    -q|--quiet)
+    QUIET=YES
+    ;;
     -g|--governor)
     GOVERNOR="$2"
     shift
@@ -68,6 +71,7 @@ Options:
  -m, --min <number>\t\t The minimum CPU frequency (must be supported by governor and CPU. More info in cpufreq-info)
  -M, --max <number>\t\t The maximum CPU frequency (must be supported by governor and CPU. More info in cpufreq-info)
  -f, --frequency\t\t The current CPU frequency
+ -q, --quet\t\t\t Don't display much output when setting a parameter
  -h, --help\t\t\t Show this help screen
 "
 }
@@ -105,43 +109,91 @@ function getMaxFrequency {
 }
 
 function list {
-	CPU="$1"
+	processor="$1"
 	option="$2"
 	
 #	echo "option: $option";
-	if [ -z "$CPU" ]; then
-		CPU=0
+	if [ -z "$processor" ]; then
+		processor=0
 	fi
 	
-	freq=$(getCurrentFrequency "-c $CPU")
-	governor=$(getCurrentGovernor "-c $CPU")
-	min=$(getMinFrequency "-c $CPU")
-	max=$(getMaxFrequency "-c $CPU")
+	freq=$(getCurrentFrequency "-c $processor")
+	governor=$(getCurrentGovernor "-c $processor")
+	min=$(getMinFrequency "-c $processor")
+	max=$(getMaxFrequency "-c $processor")
 	
 	if [ "$option" == "governor" ]; then
-		printf "CPU$CPU:\t$governor\n";
+		printf "CPU$processor:\t$governor\n";
 	elif [ "$option" == "min" ]; then
-		printf "CPU$CPU:\t$min\n";
+		printf "CPU$processor:\t$min\n";
 	elif [ "$option" == "max" ]; then
-		printf "CPU$CPU:\t$max\n";
+		printf "CPU$processor:\t$max\n";
 	elif [ "$option" == "frequency" ]; then
-		printf "CPU$CPU:\t$freq\n";
+		printf "CPU$processor:\t$freq\n";
 	else
-		printf "CPU$CPU:\tgovernor $governor\tmin $min\tmax $max\tcurrent $freq\n";
+		printf "CPU$processor:\tgovernor $governor\tmin $min\tmax $max\tcurrent $freq\n";
 	fi
 }
 
-
-
-
-
 if [ "$SET" == "YES" ]; then
-	echo "Set something"
 	# Make sure only root can run our script to set things
 	if (( $EUID != 0 )); then
-	   echo "This script must be run as root if you want to change things:" 1>&2
-	   echo "sudo $0" 1>&2
+	   echo "This script must be run as root if you want to change things" 1>&2
 	   exit 2
+	fi
+	
+	#we can set all of the settings being passed - governor, min, max for a specific CPU or for all
+	cmdline=
+	if [ ! -z "$GOVERNOR" ]; then
+		cmdline="$cmdline -g '$GOVERNOR'"
+	fi
+	if [ ! -z "$MIN" ]; then
+		cmdline="$cmdline -d ${MIN}000"
+	fi
+	if [ ! -z "$MAX" ]; then
+		cmdline="$cmdline -u ${MAX}000"
+	fi
+	
+	if [ -z "$QUIET" ]; then
+		echo "CPU settings before:"
+		#print settings before
+		if [ -z "$CPU" ]; then
+			#iterate through all CPUs
+			totalCPUs=`grep processor /proc/cpuinfo | wc -l`
+			for((cpu=0; cpu<$totalCPUs; cpu++));
+			do
+				list "$cpu" ""
+			done
+		else
+			list "$CPU" ""
+		fi
+	fi
+	#make the changes
+	if [ -z "$CPU" ]; then
+		#iterate through all CPUs
+		totalCPUs=`grep processor /proc/cpuinfo | wc -l`
+		for((cpu=0; cpu<$totalCPUs; cpu++));
+		do
+			sudo su -c "$cpuset -c $cpu $cmdline"
+		done
+	else
+		sudo su -c "$cpuset -c $CPU $cmdline"
+	fi
+	
+	if [ -z "$QUIET" ]; then
+		echo "CPU settings after:"
+		#print settings after
+		if [ -z "$CPU" ]; then
+			#iterate through all CPUs
+			totalCPUs=`grep processor /proc/cpuinfo | wc -l`
+			cpu=0;
+			for((cpu=0; cpu<$totalCPUs; cpu++));
+			do
+				list "$cpu" ""
+			done
+		else
+			list "$CPU" ""
+		fi
 	fi
 	
 elif [ "$LIST" == "YES" ]; then
