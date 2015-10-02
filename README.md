@@ -2,7 +2,7 @@
 Simple script to set CPU parameters such as governor and frequencies for your XU3 (and possible XU4)
 
 Usage:
-
+```
 ./odroid-xu3-cpu-control [options]
 
 Options:
@@ -15,19 +15,19 @@ Options:
  -f, --frequency                 The current CPU frequency
  -q, --quiet                     Don't display much output when setting a parameter
  -h, --help                      Show this help screen
- 
+```
 Examples:
 
 * list current settings for all CPUs:
- ./odroid-xu3-cpu-control -l
+ <pre>./odroid-xu3-cpu-control -l</pre>
 * list current settings for CPU 3:
- ./odroid-xu3-cpu-control -l -c 3
+ <pre>./odroid-xu3-cpu-control -l -c 3</pre>
 * list current frequency for CPU 3:
- ./odroid-xu3-cpu-control -l -c 3 -f
+ <pre>./odroid-xu3-cpu-control -l -c 3 -f</pre>
 * list current governor for CPU 3:
- ./odroid-xu3-cpu-control -l -c 3 -g 0
+ <pre>./odroid-xu3-cpu-control -l -c 3 -g 0</pre>
 * set governor, min, max frequency for all CPUs:
- ./odroid-xu3-cpu-control -s -g "conservative" -m 300 -M 1000
+ <pre>./odroid-xu3-cpu-control -s -g "conservative" -m 300 -M 1000</pre>
 
 Bugs:
 * When listing, parameters such as -m, -M, -g expect a value even if it's not used
