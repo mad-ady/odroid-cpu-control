@@ -1,9 +1,9 @@
-# odroid-xu3-cpu-control
-Simple script to set CPU parameters such as governor and frequencies for your XU3 (and possible XU4)
+# odroid-cpu-control
+Simple script to set CPU parameters such as governor and frequencies for your Odroid device (XU3 and possible XU4)
 
 Usage:
 ```
-./odroid-xu3-cpu-control [options]
+./odroid-cpu-control [options]
 
  -l, --list                 List a parameter
  -s, --set                  Set a parameter
@@ -19,15 +19,15 @@ Usage:
 Examples:
 
 * list current settings for all CPUs:
- <pre>./odroid-xu3-cpu-control -l</pre>
+ <pre>./odroid-cpu-control -l</pre>
 * list current settings for CPU 3:
- <pre>./odroid-xu3-cpu-control -l -c 3</pre>
+ <pre>./odroid-cpu-control -l -c 3</pre>
 * list current frequency for CPU 3:
- <pre>./odroid-xu3-cpu-control -l -c 3 -f</pre>
+ <pre>./odroid-cpu-control -l -c 3 -f</pre>
 * list current governor for CPU 3:
- <pre>./odroid-xu3-cpu-control -l -c 3 -g</pre>
+ <pre>./odroid-cpu-control -l -c 3 -g</pre>
 * set governor, min, max frequency for all CPUs:
- <pre>./odroid-xu3-cpu-control -s -g "powersave" -m 300M -M 1G</pre>
+ <pre>./odroid-cpu-control -s -g "powersave" -m 300M -M 1G</pre>
 * set governor, min, max frequency for cpus 1, 4, 5 and 6:
- <pre>./odroid-xu3-cpu-control -s -g "powersave" -m 400M -M 1.3G -c 1,4-6</pre>
+ <pre>./odroid-cpu-control -s -g "powersave" -m 400M -M 1.3G -c 1,4-6</pre>
 
