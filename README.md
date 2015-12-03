@@ -5,16 +5,16 @@ Usage:
 ```
 ./odroid-xu3-cpu-control [options]
 
-Options:
- -l, --list                      List a parameter
- -s, --set                       Set a parameter
- -g, --governor <governor>       Select a governor (available in cpufreq-info)
- -c, --cpu <number>              The CPU to edit/query. Leave blank for all CPUs
- -m, --min <number>              The minimum CPU frequency (must be supported by governor and CPU. More info in cpufreq-info)
- -M, --max <number>              The maximum CPU frequency (must be supported by governor and CPU. More info in cpufreq-info)
- -f, --frequency                 The current CPU frequency
- -q, --quiet                     Don't display much output when setting a parameter
- -h, --help                      Show this help screen
+ -l, --list                 List a parameter
+ -s, --set                  Set a parameter
+ -g, --governor <governor>  Select a governor
+ -c, --cpu <number|range>   The CPU to edit/query. Leave blank for all CPUs. Valid syntax:
+                            0; 0,4; 0,4,5-7; 0-7
+ -m, --min <number>         The minimum CPU frequency (must be supported by governor and CPU)
+ -M, --max <number>         The maximum CPU frequency (must be supported by governor and CPU)
+ -f, --frequency            The current CPU frequency
+ -q, --quiet                Don't display much output when setting a parameter
+ -h, --help                 Show this help screen
 ```
 Examples:
 
@@ -25,11 +25,9 @@ Examples:
 * list current frequency for CPU 3:
  <pre>./odroid-xu3-cpu-control -l -c 3 -f</pre>
 * list current governor for CPU 3:
- <pre>./odroid-xu3-cpu-control -l -c 3 -g 0</pre>
+ <pre>./odroid-xu3-cpu-control -l -c 3 -g</pre>
 * set governor, min, max frequency for all CPUs:
- <pre>./odroid-xu3-cpu-control -s -g "conservative" -m 300 -M 1000</pre>
+ <pre>./odroid-xu3-cpu-control -s -g "powersave" -m 300M -M 1G</pre>
+* set governor, min, max frequency for cpus 1, 4, 5 and 6:
+ <pre>./odroid-xu3-cpu-control -s -g "powersave" -m 400M -M 1.3G -c 1,4-6</pre>
 
-Bugs:
-* When listing, parameters such as -m, -M, -g expect a value even if it's not used
-* Setting runs internally sudo su -c even if the script is run as root. There's a problem running the command from inside the script - something different in the environment. If you run it as non-root with sudo and you want to run it non-interactivelly, it would help if it could configure sudo to authenticate your user without a password.
-* Parameters are not validated. cpufreq-set/cpufreq-info will complain if you supply bad parameters.
