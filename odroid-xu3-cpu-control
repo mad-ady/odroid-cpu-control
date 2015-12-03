@@ -1,228 +1,243 @@
-#!/bin/bash
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Getopt::Long qw(:config no_ignore_case);
+use Data::Dumper;
 
-#some reasonable defaults
-cpuinfo='/usr/bin/cpufreq-info'
-cpuset='/usr/bin/cpufreq-set'
-LIST=
+#
+# Code released under GPLv3: http://www.gnu.org/licenses/gpl.html
+# v0.2 - Adrian Popa (2015.12.03) 
+#
 
-#parameter parsing taken from http://stackoverflow.com/questions/192249/how-do-i-parse-command-line-arguments-in-bash
-while [[ "$#" > 0 ]]
-do
-key="$1"
-case $key in
-    -l|--list)
-    LIST=YES
-    SET=NO
-    ;;
-    -s|--set)
-    SET=YES
-    LIST=NO
-    ;;
-    -f|--frequency)
-    FREQUENCY=YES
-    ;;
-    -q|--quiet)
-    QUIET=YES
-    ;;
-    -g|--governor)
-    GOVERNOR="$2"
-    shift
-    ;;
-    -c|--cpu)
-    CPU="$2"
-    shift
-    ;;
-    -m|--min)
-    MIN="$2"
-    shift
-    ;;
-    -M|--max)
-    MAX="$2"
-    shift
-    ;;
-    -h|--help)
-    usage;
-    exit 0;
-    ;;
-    *)
-            # unknown option
-    ;;
-esac
-shift # past argument or value
-done
+#we get our data mainly from /sys/devices/system/cpu
 
-#echo "SET: " $SET
-#echo "LIST: " $LIST
-#echo "GOVERNOR: " $GOVERNOR
-#echo "CPU: " $CPU
-#echo "MIN: " $MIN
-#echo "MAX: " $MAX
-#echo "FREQUENCY: " $FREQUENCY
+my %options = ();
 
-function usage {
-	printf "Usage:
+GetOptions(\%options, 'help|h', 'quiet|q', 'list|l', 'set|s', 'governor|g:s', 'cpu|c=s', 'min|m:s', 'max|M:s', 'frequency|f');
+#print Dumper(\%options);
+
+if(defined $options{'help'}){
+    usage();
+    exit(0);
+}
+
+if(defined $options{'set'}){
+    #interpret the parameters as a set command
+    
+    #user must be root
+    die "The script must be run as root in order to apply changes!" if($> != 0);
+    
+    #see on which cpus you need to set things
+    my @cpu = getCPUs();
+    my %before;
+    if(! exists $options{'quiet'}){
+        %before = getListing(@cpu);
+    }
+    
+    #set the data
+    foreach my $core (@cpu){
+        if(defined $options{'governor'}){
+            open FILE, ">/sys/devices/system/cpu/cpu${core}/cpufreq/scaling_governor" or die "$!";
+            print FILE $options{'governor'};
+            close FILE;
+        }
+        if(defined $options{'min'}){
+            open FILE, ">/sys/devices/system/cpu/cpu${core}/cpufreq/scaling_min_freq" or die "$!";
+            my $number = $options{'min'};
+            if($options{'min'}=~/([0-9\.]+)(M|G)?/){
+                $number = $1;
+                my $scale = $2;
+                $number = $number * 1000 if($scale eq 'M');
+                $number = $number * 1000_000 if($scale eq 'G');
+            }
+            print FILE $number;
+            close FILE;
+        }
+        if(exists $options{'max'}){
+            open FILE, ">/sys/devices/system/cpu/cpu${core}/cpufreq/scaling_max_freq" or die "$!";
+            my $number = $options{'max'};
+            if($options{'max'}=~/([0-9\.]+)(M|G)?/){
+                $number = $1;
+                my $scale = $2;
+                #print "DBG: $options{'max'}\n";
+                $number = $number * 1000 if(defined $scale && $scale eq 'M');
+                $number = $number * 1000_000 if(defined $scale && $scale eq 'G');
+            }
+            print FILE $number;
+            close FILE;
+        }
+        if(exists $options{'frequency'}){
+            #can't set current frequency
+        }
+    }
+    
+    #display results (if any)
+    if(! exists $options{'quiet'}){
+        my %after = getListing(@cpu);
+#        print "DBG: ".Dumper(\%after);
+        foreach my $core (@cpu){
+            
+            if(defined $after{$core}{'governor'}){
+                print "CPU$core: governor $before{$core}{'governor'} -> $after{$core}{'governor'}\n";
+            }
+            if(defined $after{$core}{'scale_min'}){
+                print "CPU$core: min ".humanReadable($before{$core}{'scale_min'})." [".humanReadable($before{$core}{'cpuinfo_min'}) ."] -> ".humanReadable($after{$core}{'scale_min'})." [".humanReadable($after{$core}{'cpuinfo_min'}) ."]\n";
+            }
+            if(defined $after{$core}{'scale_max'}){
+                print "CPU$core: max ".humanReadable($before{$core}{'scale_max'})." [".humanReadable($before{$core}{'cpuinfo_max'}) ."] -> ".humanReadable($after{$core}{'scale_max'})." [".humanReadable($after{$core}{'cpuinfo_max'}) ."]\n";
+            }
+        }
+    }
+    
+}
+elsif(defined $options{'list'}){
+    #select all things to display if none is specified
+    if(! exists $options{'governor'} && ! exists $options{'min'} && ! exists $options{'max'} && ! exists $options{'frequency'}){
+        $options{'governor'} = undef;
+        $options{'min'} = undef;
+        $options{'max'} = undef;
+        $options{'frequency'} = undef;
+    }
+    #interpret the parameters as a list command
+    my @cpu = getCPUs();
+    my %results = getListing(@cpu);
+    
+    #print Dumper(\%results);
+    
+    #display the data -- redundant for, but we might expand/decouple the display later
+    foreach my $core (@cpu){
+        
+        my $output = "CPU$core: ";
+        $output.="governor $results{$core}{'governor'}\t" if (exists $results{$core}{'governor'});
+        $output.="current ".humanReadable($results{$core}{'cur'})."\t" if (exists $results{$core}{'cur'});
+        $output.="min ".humanReadable($results{$core}{'scale_min'})." [".humanReadable($results{$core}{'cpuinfo_min'}) ."]\t" if (exists $results{$core}{'scale_min'});
+        $output.="max ".humanReadable($results{$core}{'scale_max'})." [".humanReadable($results{$core}{'cpuinfo_max'}) ."] \t" if (exists $results{$core}{'scale_max'});
+        
+        
+        print $output."\n";
+    }
+}
+else{
+    usage();
+    exit(1);
+}
+
+sub humanReadable{
+    my $value = shift;
+    my %scaleMapping = (
+        '3' => 'MHz',
+        '6' => 'GHz',
+        '9' => 'THz'
+    );
+    
+    my $result = $value;
+    my $scale = 0;
+    my $break = 0;
+    while($result >= 1000){
+        $result = $result/1000;
+        $scale+=3;
+    }
+    return sprintf("%.2f", $result) . $scaleMapping{$scale};
+}
+
+sub usage{
+    my $governors = getData("/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors");
+    print "Usage:
 $0 [options]
 
 Options:
  -l, --list\t\t\t List a parameter
  -s, --set\t\t\t Set a parameter
- -g, --governor <governor>\t Select a governor (available in cpufreq-info)
- -c, --cpu <number>\t\t The CPU to edit/query. Leave blank for all CPUs
- -m, --min <number>\t\t The minimum CPU frequency (must be supported by governor and CPU. More info in cpufreq-info)
- -M, --max <number>\t\t The maximum CPU frequency (must be supported by governor and CPU. More info in cpufreq-info)
+ -g, --governor <governor>\t Select a governor
+ \t\t\t\t ($governors)
+ -c, --cpu <number|range>\t The CPU to edit/query. Leave blank for all CPUs. Valid syntax:
+ \t\t\t\t 0; 0,4; 0,4,5-7; 0-7
+ -m, --min <number>\t\t The minimum CPU frequency (must be supported by governor and CPU)
+ -M, --max <number>\t\t The maximum CPU frequency (must be supported by governor and CPU)
  -f, --frequency\t\t The current CPU frequency
  -q, --quiet\t\t\t Don't display much output when setting a parameter
  -h, --help\t\t\t Show this help screen
+ 
+Examples:
+ $0 -l\t\t\t\t\tLists current frequency/governor for all cores
+ $0 -l -g -f\t\t\t\tLists just governor and current frequency for all cores
+ $0 -l -c 0,4\t\t\t\tLists all information only for cores 0 and 4
+ $0 -l -c 0-4\t\t\t\tLists all information for cores 0 to 4
+ $0 -s -g powersave -m 300M -M 600M\tSets governor, minimum and maximum frequency for all cores
+ $0 -s -M 1.2G -c 0,4\t\t\tSets maximum frequency on cores 0 and 4
 "
 }
 
-function getCurrentFrequency {
-	OPTS="$1"
-	local OUTPUT=`$cpuinfo -f $OPTS | sed 's/000$/MHz/'`;
-	if [ ! -z "$OUTPUT" ]; then
-		echo "$OUTPUT"
-	fi
+sub getCPUs{
+    my @cpu = ();
+    #see if the user specified a CPU
+    if(defined $options{'cpu'}){
+        #parse the CPU option. Could be a number or a sequence
+        # -c 1
+        # -c 1,4
+        # -c 1,4,5-8
+        my @commas = split(/,/, $options{'cpu'});
+        foreach my $comma (@commas){
+            #see if there are any ranges
+            if($comma=~/([0-9]+)-([0-9]+)/){
+                my $start = $1;
+                my $stop = $2;
+                for($start..$stop){
+                    push @cpu, $_;
+                }
+            }
+            else{
+                push @cpu, $comma;
+            }
+        }
+        #push @cpu, $options{'cpu'};
+    }
+    else{
+        #get all cpus from the system
+        my $content = getData("/sys/devices/system/cpu/present");
+        if($content=~/([0-9]+)$/){
+            my $maxCPU = $1;
+            for(0..$maxCPU){
+                push @cpu, $_;
+            }
+        }
+        else{
+            die "Unable to get the list of CPUs";
+        }
+    }
+    return @cpu;
 }
 
-function getCurrentGovernor {
-	OPTS="$1"
-	local OUTPUT=`$cpuinfo -p $OPTS | cut -d " " -f 3`;
-	if [ ! -z "$OUTPUT" ]; then
-		echo "$OUTPUT"
-	fi
+sub getData{
+    my $filename = shift;
+    open FILE, "$filename" or die "Unable to open $filename: $!";
+    my $line = <FILE>;
+    $line=~s/\r|\n//g;
+    close FILE;
+    return $line;
 }
 
-function getMinFrequency {
-	OPTS="$1"
-	local OUTPUT=`$cpuinfo -l $OPTS | cut -d " " -f 1 | sed 's/000$/MHz/'`;
-	if [ ! -z "$OUTPUT" ]; then
-		echo "$OUTPUT"
-	fi
+sub getListing{
+    my %results;
+    my @cpu = @_;
+    
+    #get the data
+    foreach my $core (@cpu){
+        if(exists $options{'governor'}){
+            $results{$core}{'governor'} = getData("/sys/devices/system/cpu/cpu${core}/cpufreq/scaling_governor");
+        }
+        if(exists $options{'min'}){
+            $results{$core}{'scale_min'} = getData("/sys/devices/system/cpu/cpu${core}/cpufreq/scaling_min_freq");
+            $results{$core}{'cpuinfo_min'} = getData("/sys/devices/system/cpu/cpu${core}/cpufreq/cpuinfo_min_freq");
+        }
+        if(exists $options{'max'}){
+            $results{$core}{'scale_max'} = getData("/sys/devices/system/cpu/cpu${core}/cpufreq/scaling_max_freq");
+            $results{$core}{'cpuinfo_max'} = getData("/sys/devices/system/cpu/cpu${core}/cpufreq/cpuinfo_max_freq");
+        }
+        if(exists $options{'frequency'}){
+            $results{$core}{'cur'} = getData("/sys/devices/system/cpu/cpu${core}/cpufreq/scaling_cur_freq");
+        }
+    }
+    
+    return %results;
 }
-
-function getMaxFrequency {
-	OPTS="$1"
-	local OUTPUT=`$cpuinfo -l $OPTS | cut -d " " -f 2 | sed 's/000$/MHz/'`;
-	if [ ! -z "$OUTPUT" ]; then
-		echo "$OUTPUT"
-	fi
-}
-
-function list {
-	processor="$1"
-	option="$2"
-	
-#	echo "option: $option";
-	if [ -z "$processor" ]; then
-		processor=0
-	fi
-	
-	freq=$(getCurrentFrequency "-c $processor")
-	governor=$(getCurrentGovernor "-c $processor")
-	min=$(getMinFrequency "-c $processor")
-	max=$(getMaxFrequency "-c $processor")
-	
-	if [ "$option" == "governor" ]; then
-		printf "CPU$processor:\t$governor\n";
-	elif [ "$option" == "min" ]; then
-		printf "CPU$processor:\t$min\n";
-	elif [ "$option" == "max" ]; then
-		printf "CPU$processor:\t$max\n";
-	elif [ "$option" == "frequency" ]; then
-		printf "CPU$processor:\t$freq\n";
-	else
-		printf "CPU$processor:\tgovernor $governor\tmin $min\tmax $max\tcurrent $freq\n";
-	fi
-}
-
-if [ "$SET" == "YES" ]; then
-	# Make sure only root can run our script to set things
-	if (( $EUID != 0 )); then
-	   echo "This script must be run as root if you want to change things" 1>&2
-	   exit 2
-	fi
-	
-	#we can set all of the settings being passed - governor, min, max for a specific CPU or for all
-	cmdline=
-	if [ ! -z "$GOVERNOR" ]; then
-		cmdline="$cmdline -g '$GOVERNOR'"
-	fi
-	if [ ! -z "$MIN" ]; then
-		cmdline="$cmdline -d ${MIN}000"
-	fi
-	if [ ! -z "$MAX" ]; then
-		cmdline="$cmdline -u ${MAX}000"
-	fi
-	
-	if [ -z "$QUIET" ]; then
-		echo "CPU settings before:"
-		#print settings before
-		if [ -z "$CPU" ]; then
-			#iterate through all CPUs
-			totalCPUs=`grep processor /proc/cpuinfo | wc -l`
-			for((cpu=0; cpu<$totalCPUs; cpu++));
-			do
-				list "$cpu" ""
-			done
-		else
-			list "$CPU" ""
-		fi
-	fi
-	#make the changes
-	if [ -z "$CPU" ]; then
-		#iterate through all CPUs
-		totalCPUs=`grep processor /proc/cpuinfo | wc -l`
-		for((cpu=0; cpu<$totalCPUs; cpu++));
-		do
-			sudo su -c "$cpuset -c $cpu $cmdline"
-		done
-	else
-		sudo su -c "$cpuset -c $CPU $cmdline"
-	fi
-	
-	if [ -z "$QUIET" ]; then
-		echo "CPU settings after:"
-		#print settings after
-		if [ -z "$CPU" ]; then
-			#iterate through all CPUs
-			totalCPUs=`grep processor /proc/cpuinfo | wc -l`
-			cpu=0;
-			for((cpu=0; cpu<$totalCPUs; cpu++));
-			do
-				list "$cpu" ""
-			done
-		else
-			list "$CPU" ""
-		fi
-	fi
-	
-elif [ "$LIST" == "YES" ]; then
-	#we call cpufreq-info and parse out the results
-	
-	opts=""
-	if [ ! -z "$GOVERNOR" ]; then
-		opts='governor'
-	elif [ ! -z "$MIN" ]; then
-		opts='min'
-	elif [ ! -z "$MAX" ]; then
-		opts='max'
-	elif [ "$FREQUENCY" == "YES" ]; then
-		opts='frequency'
-	else
-		opts=''
-	fi
-	
-	if [ -z "$CPU" ]; then
-		#iterate through all CPUs
-		totalCPUs=`grep processor /proc/cpuinfo | wc -l`
-		for((cpu=0; cpu<$totalCPUs; cpu++));
-		do
-			list "$cpu" "$opts"
-		done
-	else
-		list "$CPU" "$opts"
-	fi
-else 
-	usage
-	exit 1;
-fi
