@@ -13,7 +13,9 @@ use Data::Dumper;
 
 my %options = ();
 
-GetOptions(\%options, 'help|h', 'quiet|q', 'list|l', 'set|s', 'governor|g:s', 'cpu|c=s', 'min|m:s', 'max|M:s', 'frequency|f');
+my $cls = "\033[2J\033[0;0H"; #fancy ANSI escape string
+
+GetOptions(\%options, 'help|h', 'quiet|q', 'list|l', 'set|s', 'governor|g:s', 'cpu|c=s', 'min|m:s', 'max|M:s', 'frequency|f', 'interactive|i=i');
 #print Dumper(\%options);
 
 if(defined $options{'help'}){
@@ -100,21 +102,35 @@ elsif(defined $options{'list'}){
     }
     #interpret the parameters as a list command
     my @cpu = getCPUs();
-    my %results = getListing(@cpu);
+    #start an infinte loop in case we're in interactive mode
+    while(1){
+	if(defined $options{'interactive'}){
+		print $cls;
+		print "Type CTRL+C to exit.\n";
+	}
+        my %results = getListing(@cpu);
     
-    #print Dumper(\%results);
+	#print Dumper(\%results);
     
-    #display the data -- redundant for, but we might expand/decouple the display later
-    foreach my $core (@cpu){
+        #display the data -- redundant for, but we might expand/decouple the display later
+	foreach my $core (@cpu){
         
-        my $output = "CPU$core: ";
-        $output.="governor $results{$core}{'governor'}\t" if (exists $results{$core}{'governor'});
-        $output.="current ".humanReadable($results{$core}{'cur'})."\t" if (exists $results{$core}{'cur'});
-        $output.="min ".humanReadable($results{$core}{'scale_min'})." [".humanReadable($results{$core}{'cpuinfo_min'}) ."]\t" if (exists $results{$core}{'scale_min'});
-        $output.="max ".humanReadable($results{$core}{'scale_max'})." [".humanReadable($results{$core}{'cpuinfo_max'}) ."] \t" if (exists $results{$core}{'scale_max'});
+    	    my $output = "CPU$core: ";
+    	    $output.="governor $results{$core}{'governor'}\t" if (exists $results{$core}{'governor'});
+    	    $output.="current ".humanReadable($results{$core}{'cur'})."\t" if (exists $results{$core}{'cur'});
+    	    $output.="min ".humanReadable($results{$core}{'scale_min'})." [".humanReadable($results{$core}{'cpuinfo_min'}) ."]\t" if (exists $results{$core}{'scale_min'});
+    	    $output.="max ".humanReadable($results{$core}{'scale_max'})." [".humanReadable($results{$core}{'cpuinfo_max'}) ."] \t" if (exists $results{$core}{'scale_max'});
         
         
-        print $output."\n";
+    	    print $output."\n";
+	}
+
+	if(defined $options{'interactive'}){
+	    sleep($options{'interactive'});
+	}
+	else{
+	    last; #break the infinite while
+	}
     }
 }
 else{
@@ -156,10 +172,11 @@ Options:
  -M, --max <number>\t\t The maximum CPU frequency (must be supported by governor and CPU)
  -f, --frequency\t\t The current CPU frequency
  -q, --quiet\t\t\t Don't display much output when setting a parameter
+ -i, --interactive <number>\t Keep running the list command every number seconds
  -h, --help\t\t\t Show this help screen
  
 Examples:
- $0 -l\t\t\t\t\tLists current frequency/governor for all cores
+ $0 -l\t\t\t\tLists current frequency/governor for all cores
  $0 -l -g -f\t\t\t\tLists just governor and current frequency for all cores
  $0 -l -c 0,4\t\t\t\tLists all information only for cores 0 and 4
  $0 -l -c 0-4\t\t\t\tLists all information for cores 0 to 4
