@@ -15,7 +15,7 @@ my %options = ();
 
 my $cls = "\033[2J\033[0;0H"; #fancy ANSI escape string
 
-GetOptions(\%options, 'help|h', 'quiet|q', 'list|l', 'set|s', 'governor|g:s', 'cpu|c=s', 'min|m:s', 'max|M:s', 'frequency|f', 'interactive|i=i');
+GetOptions(\%options, 'help|h', 'quiet|q', 'list|l', 'set|s', 'governor|g:s', 'cpu|c=s', 'min|m:s', 'max|M:s', 'frequency|f', 'interactive|i=i', 'temperature|t');
 #print Dumper(\%options);
 
 if(defined $options{'help'}){
@@ -94,11 +94,12 @@ if(defined $options{'set'}){
 }
 elsif(defined $options{'list'}){
     #select all things to display if none is specified
-    if(! exists $options{'governor'} && ! exists $options{'min'} && ! exists $options{'max'} && ! exists $options{'frequency'}){
+    if(! exists $options{'governor'} && ! exists $options{'min'} && ! exists $options{'max'} && ! exists $options{'frequency'} && ! exists $options{'temperature'}){
         $options{'governor'} = undef;
         $options{'min'} = undef;
         $options{'max'} = undef;
         $options{'frequency'} = undef;
+	$options{'temperature'} = undef;
     }
     #interpret the parameters as a list command
     my @cpu = getCPUs();
@@ -108,14 +109,19 @@ elsif(defined $options{'list'}){
 		print $cls;
 		print "Type CTRL+C to exit.\n";
 	}
-        my %results = getListing(@cpu);
-    
+        
+	my $temp = 0;
+	if(defined $options{'temperature'}){
+	    $temp = getTemperature();
+	}
+
 	#print Dumper(\%results);
-    
+	if(exists $options{'governor'} || exists $options{'frequency'} || exists $options{'min'} || exists $options{'max'}){
+	    my %results = getListing(@cpu);
         #display the data -- redundant for, but we might expand/decouple the display later
 	foreach my $core (@cpu){
         
-    	    my $output = "CPU$core: ";
+	    my $output.= "CPU$core: ";
     	    $output.="governor $results{$core}{'governor'}\t" if (exists $results{$core}{'governor'});
     	    $output.="current ".humanReadable($results{$core}{'cur'})."\t" if (exists $results{$core}{'cur'});
     	    $output.="min ".humanReadable($results{$core}{'scale_min'})." [".humanReadable($results{$core}{'cpuinfo_min'}) ."]\t" if (exists $results{$core}{'scale_min'});
@@ -123,6 +129,10 @@ elsif(defined $options{'list'}){
         
         
     	    print $output."\n";
+	}
+	}
+	if(defined $options{'temperature'}){
+	    print "TEMP: ${temp}C\n";
 	}
 
 	if(defined $options{'interactive'}){
@@ -171,6 +181,7 @@ Options:
  -m, --min <number>\t\t The minimum CPU frequency (must be supported by governor and CPU)
  -M, --max <number>\t\t The maximum CPU frequency (must be supported by governor and CPU)
  -f, --frequency\t\t The current CPU frequency
+ -t, --temperature\t\t The current CPU temperature
  -q, --quiet\t\t\t Don't display much output when setting a parameter
  -i, --interactive <number>\t Keep running the list command every number seconds
  -h, --help\t\t\t Show this help screen
@@ -232,6 +243,16 @@ sub getData{
     $line=~s/\r|\n//g;
     close FILE;
     return $line;
+}
+
+sub getTemperature{
+    my $temperatureFile = '/sys/devices/virtual/thermal/thermal_zone0/temp';
+    my $temp = 0;
+    if(-f "$temperatureFile"){
+	$temp = getData($temperatureFile);
+	$temp = $temp/1000;
+    }
+    return $temp;
 }
 
 sub getListing{
