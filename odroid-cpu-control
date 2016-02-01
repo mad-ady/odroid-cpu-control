@@ -15,7 +15,7 @@ my %options = ();
 
 my $cls = "\033[2J\033[0;0H"; #fancy ANSI escape string
 
-GetOptions(\%options, 'help|h', 'quiet|q', 'list|l', 'set|s', 'governor|g:s', 'cpu|c=s', 'min|m:s', 'max|M:s', 'frequency|f', 'interactive|i=i', 'temperature|t');
+GetOptions(\%options, 'help|h', 'quiet|q', 'list|l', 'set|s', 'governor|g:s', 'cpu|c=s', 'min|m:s', 'max|M:s', 'frequency|f', 'interactive|i=f', 'temperature|t');
 #print Dumper(\%options);
 
 if(defined $options{'help'}){
@@ -136,7 +136,9 @@ elsif(defined $options{'list'}){
 	}
 
 	if(defined $options{'interactive'}){
-	    sleep($options{'interactive'});
+	    #sleep($options{'interactive'});
+	    #sleep fractional seconds without the need of Time::HiRes
+	    select(undef, undef, undef, $options{'interactive'});
 	}
 	else{
 	    last; #break the infinite while
