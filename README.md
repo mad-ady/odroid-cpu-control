@@ -13,7 +13,9 @@ Usage:
  -m, --min <number>         The minimum CPU frequency (must be supported by governor and CPU)
  -M, --max <number>         The maximum CPU frequency (must be supported by governor and CPU)
  -f, --frequency            The current CPU frequency
+ -t, --temperature		        The current CPU temperature
  -q, --quiet                Don't display much output when setting a parameter
+ -i, --interactive <number>	Keep running the list command every number seconds
  -h, --help                 Show this help screen
 ```
 Examples:
