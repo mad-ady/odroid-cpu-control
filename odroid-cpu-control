@@ -6,7 +6,7 @@ use Data::Dumper;
 
 #
 # Code released under GPLv3: http://www.gnu.org/licenses/gpl.html
-# v0.2 - Adrian Popa (2015.12.03) 
+# v0.3 - Adrian Popa (2016.03.11) 
 #
 
 #we get our data mainly from /sys/devices/system/cpu
@@ -105,6 +105,9 @@ elsif(defined $options{'list'}){
     my @cpu = getCPUs();
     #start an infinte loop in case we're in interactive mode
     while(1){
+        #make output buffered
+        $|=0;
+	
 	if(defined $options{'interactive'}){
 		print $cls;
 		print "Type CTRL+C to exit.\n";
@@ -143,6 +146,7 @@ elsif(defined $options{'list'}){
 	else{
 	    last; #break the infinite while
 	}
+    $|=1;
     }
 }
 else{
@@ -224,10 +228,12 @@ sub getCPUs{
     }
     else{
         #get all cpus from the system
-        my $content = getData("/sys/devices/system/cpu/present");
-        if($content=~/([0-9]+)$/){
-            my $maxCPU = $1;
-            for(0..$maxCPU){
+        my $content = getData("/sys/devices/system/cpu/online");
+        if($content=~/([0-9]+)(?:-([0-9]+))?/){
+            my $minCPU = $1;
+	    my $maxCPU = $minCPU;
+	    $maxCPU = $2 if(defined $2);
+            for($minCPU..$maxCPU){
                 push @cpu, $_;
             }
         }
@@ -240,10 +246,12 @@ sub getCPUs{
 
 sub getData{
     my $filename = shift;
-    open FILE, "$filename" or die "Unable to open $filename: $!";
-    my $line = <FILE>;
-    $line=~s/\r|\n//g;
-    close FILE;
+    my $line = 'N/A';
+    if(open FILE, "$filename"){
+    	$line = <FILE>;
+    	$line=~s/\r|\n//g;
+    	close FILE;
+    }
     return $line;
 }
 
