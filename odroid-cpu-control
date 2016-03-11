@@ -101,10 +101,10 @@ elsif(defined $options{'list'}){
         $options{'frequency'} = undef;
 	$options{'temperature'} = undef;
     }
-    #interpret the parameters as a list command
-    my @cpu = getCPUs();
     #start an infinte loop in case we're in interactive mode
     while(1){
+    	my @cpu = getCPUs();
+	
         #make output buffered
         $|=0;
 	
