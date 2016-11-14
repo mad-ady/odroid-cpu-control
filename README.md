@@ -1,5 +1,5 @@
 # odroid-cpu-control
-Simple script to set CPU parameters such as governor and frequencies for your Odroid device (XU3 and possible XU4)
+Simple script to set CPU parameters such as governor and frequencies for your Odroid device (C0, C1, C2, XU3, XU4, RPI, and basically linux device, even PC - sorry, the name is misleading)
 
 Usage:
 ```
@@ -33,3 +33,20 @@ Examples:
 * set governor, min, max frequency for cpus 1, 4, 5 and 6:
  <pre>./odroid-cpu-control -s -g "powersave" -m 400M -M 1.3G -c 1,4-6</pre>
 
+Installation:
+The simplest way to install this is to download it to /usr/local/bin
+```
+wget https://raw.githubusercontent.com/mad-ady/odroid-cpu-control/master/odroid-cpu-control -O /usr/local/bin/odroid-cpu-control
+chmod a+x /usr/local/bin/odroid-cpu-control
+```
+
+Persistence:
+The best way to set the frequency/governor to be persistent on boot is to edit /etc/rc.local and add a call to odroid-cpu-control before exit 0. Example:
+
+```
+/usr/local/bin/odroid-cpu-control -s -g "conservative"
+```
+Also, please note that some distributions (Odroid included) have a script called /etc/init.d/ondemand which may set a different governor on boot. In order not to interfere with your setting, it's best to disable it:
+```
+sudo chmod a-x /etc/init.d/ondemand
+```
