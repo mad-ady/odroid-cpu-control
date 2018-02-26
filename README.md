@@ -1,5 +1,5 @@
 # odroid-cpu-control
-Simple script to set CPU parameters such as governor and frequencies for your Odroid device (C0, C1, C2, XU3, XU4, RPI, and basically linux device, even PC - sorry, the name is misleading)
+Simple script to set CPU parameters such as governor and frequencies for your Odroid device (C0, C1, C2, XU3, XU4, N1, RPI, and basically linux device, even PC - sorry, the name is misleading)
 
 Usage:
 ```
